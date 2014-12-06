@@ -5,7 +5,16 @@ Small String Optimisation
 -------------------------
 TODO
 
-Common Implementations
+### Comparison
+|                | std::string  |        | std::u16string |        | std::u32string |        |
+|----------------|--------------|--------|----------------|--------|----------------|--------|
+| Implementation | SSO capacity | sizeof | SSO capacity   | sizeof | SSO capacity   | sizeof |
+| MSVC           | 15           | 24     | 7              | 24     | 3              | 24     |
+| GCC            | 15           | 24     | 15             | 32     | 15             | 80     |
+| Clang          | 22           | 24     | 10             | 24     | 4              | 24     |
+| SSO-23         | 23           | 24     | 11             | 24     | 5              | 24     |
+
+Implementation Details
 ----------------------
 
 ### MSVC 2013
