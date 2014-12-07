@@ -9,8 +9,8 @@ TODO
 |                | std::string  |        | std::u16string |        | std::u32string |        |
 |----------------|--------------|--------|----------------|--------|----------------|--------|
 | Implementation | SSO capacity | sizeof | SSO capacity   | sizeof | SSO capacity   | sizeof |
-| MSVC           | 15           | 24     | 7              | 24     | 3              | 24     |
-| GCC            | 15           | 24     | 15             | 32     | 15             | 80     |
+| MSVC           | 15           | 32     | 7              | 32     | 3              | 32     |
+| GCC            | 15           | 32     | 15             | 48     | 15             | 80     |
 | Clang          | 22           | 24     | 10             | 24     | 4              | 24     |
 | SSO-23         | 23           | 24     | 11             | 24     | 5              | 24     |
 
@@ -18,6 +18,8 @@ Implementation Details
 ----------------------
 
 ### MSVC 2013
+MSVC determines whether we are in SSO by comparing the capacity to the size of the buffer.
+
     enum { buffer_size = std::max(1, 16 / sizeof(CharT)) };
 
     union {
@@ -32,6 +34,8 @@ Implementation Details
     }
 
 ### GCC vstring (4.8.1)
+As GCC's current `std::string` implementation using COW, we will be looking at their `vstring` class, which is the proposed update. Whether we are using SSO is dependent on whether `m_ptr` points to the local buffer or not. `vstring`'s buffer grows with `sizeof(CharT)`, so the `sizeof(u32vstring)` ends up being 80 bytes.
+
     enum { local_capacity = 15 };
 
     CharT* m_ptr;
@@ -50,6 +54,8 @@ Implementation Details
     }
 
 ### Clang (rev 223128)
+Clang has two different internals to `std::string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be odd. We also show the implementation used for big endian systems.
+
     enum { short_mask = 0x01 };
     enum { long_mask  = 0x1ul };
 
@@ -72,13 +78,12 @@ Implementation Details
         short s;
     } m_data;
 
+    bool is_long() const {
+        return m_data.s.size & short_mask;
+    }
 
     CharT* data() {
         return is_long() ? m_data.l.ptr : &m_data.s.buffer;
-    }
-
-    bool is_long() const {
-        return m_data.s.size & short_mask;
     }
 
     void set_short_size(size_type s) {
@@ -130,3 +135,6 @@ When `size == 11`, `11 - size == 0` and the last byte is `0000000 = '\0'`. This 
 ![](images/sso3.png?raw=true)
 
 In x64 systems, strings of length 23 can be stored in the string object directly.
+
+Applications to current implementations
+---------------------------------------
