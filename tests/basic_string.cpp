@@ -9,12 +9,12 @@ BOOST_AUTO_TEST_SUITE(basic_string)
 BOOST_AUTO_TEST_CASE(Constructor) {
 
 	auto test_string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	std::size_t test_size = 10;
+	std::size_t test_size = 62;
 
 	auto i = test_size;
 	do {
 		auto const string_length = test_size - i;
-		sso23::string str{test_string, string_length};
+		sso23::string str{test_string + i, string_length};
 		BOOST_CHECK_EQUAL(str.size(), string_length);
 
 		auto const sso_capacity = sso23::string::sso_capacity;
