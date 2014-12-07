@@ -1,11 +1,22 @@
 SSO-23
 ======
+SSO-23 is a proof-of-concept string that uses all available bytes for SSO. So when the char type is one byte (char, signed char, unsigned char, etc.) and on a 64-bit computer, this equates to a small-string optimisation capacity of 23 (the last byte is for the null character `'\0'`).
 
-Small String Optimisation
--------------------------
-TODO
+std::string and SSO
+-------------------
+The most basic layout of a `std::basic_string<CharT>` object is
+
+    struct {
+        CharT* ptr;
+        size_type size;
+        size_type capacity;
+    };
+
+where `ptr` is a pointer to a dynamically allocated array of `CharT` of size `capacity`, which has a string of length `size`. However, allocating memory for an empty string (which must terminate with a null character) seems a bit wasteful. Most implementations of `std::basic_string` therefore allow storing a "small string" directly within the string object itself, thereby removing any allocations for small strings. This is known as small (or short) string optimisation.
 
 ### Comparison
+The table below shows the maximum size string that each library implementation can store inside the `std::basic_string` object directly, along with the sizeof the string object.
+
 |                | std::string  |        | std::u16string |        | std::u32string |        |
 |----------------|--------------|--------|----------------|--------|----------------|--------|
 | Implementation | SSO capacity | sizeof | SSO capacity   | sizeof | SSO capacity   | sizeof |
@@ -34,7 +45,7 @@ MSVC determines whether we are in SSO by comparing the capacity to the size of t
     }
 
 ### GCC vstring (4.8.1)
-As GCC's current `std::string` implementation using COW, we will be looking at their `vstring` class, which is the proposed update. Whether we are using SSO is dependent on whether `m_ptr` points to the local buffer or not. `vstring`'s buffer grows with `sizeof(CharT)`, so the `sizeof(u32vstring)` ends up being 80 bytes.
+As GCC's current `std::basic_string` implementation using COW, we will be looking at their `vstring` class, which is the proposed update. Whether we are using SSO is dependent on whether `m_ptr` points to the local buffer or not. `vstring`'s buffer grows with `sizeof(CharT)`, so the `sizeof(u32vstring)` ends up being 80 bytes.
 
     enum { local_capacity = 15 };
 
@@ -54,7 +65,7 @@ As GCC's current `std::string` implementation using COW, we will be looking at t
     }
 
 ### Clang (rev 223128)
-Clang has two different internals to `std::string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be odd. We also show the implementation used for big endian systems.
+Clang has two different internals to `std::basic_string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be odd. We also show the implementation used for big endian systems.
 
     enum { short_mask = 0x01 };
     enum { long_mask  = 0x1ul };
@@ -112,9 +123,7 @@ Clang has two different internals to `std::string` controlled by the define `_LI
 
 SSO-23
 ------
-SSO-23 is a proof-of-concept string that uses all available bytes for SSO. So when the char type is one byte (char, signed char, unsigned char, etc.) and on a 64-bit computer, this equates to a small-string optimisation capacity of 23 (the last byte is for the null character `'\0'`).
-
-We'll illustrate the method using a 32-bit system, as an x64 string would take too much horizontal space in the pictures. Also for this we will assume everything is in big endian, instead of the more common little endian. Firstly, we start with the standard representation of a string,
+We'll illustrate SSO-23 using a 32-bit system, as an x64 string would take too much horizontal space in the pictures. Also for this we will assume everything is in big endian, instead of the more common little endian, as it is simpler to visually represent. Firstly, we start with the standard representation of a string,
 
 ![](images/string1.png?raw=true)
 
@@ -138,3 +147,49 @@ In x64 systems, strings of length 23 can be stored in the string object directly
 
 Applications to current implementations
 ---------------------------------------
+Clang's implementation could easily add another character to its SSO capacity by saving `buffer_size - size` in the `m_data.s.size` so that it becomes the null character when appropriate.
+
+As they both have an additional buffer, both GCC's and MSVC's implementations could be changed to something similar to below, where we store the least significant bit of the last byte as a flag indicating whether or not whether we are in SSO. Then, if we are using SSO, we store `buffer_size - size` in the other bits of this bytes we can use all bytes available for SSO.
+
+    enum { extra_buffer_size = /* Extra capacity >= 1*/ };
+
+    struct long {
+        CharT* ptr;
+        size_type size;
+        size_type capacity;
+        Char buffer[extra_buffer_size];
+    };
+
+    struct short {
+        CharT buffer[sizeof(long) - 1];
+        CharT size;
+    };
+
+    union {
+        long l;
+        short s;
+    } m_data;
+
+    enum { short_mask = 0x01 };
+
+    bool is_long() const {
+        return (unsigned char const*)&m_data.s.size & short_mask;
+    }
+
+    void set_short_size(size_type s) {
+        m_data.s.size = (unsigned char)(s << 1);
+    }
+
+    size_type get_short_size() const {
+        return m_data.s.size >> 1;
+    }
+
+If these changes were made, and the `extra_buffer_size` is set so that the total sizeof the string is the same, we get this table for SSO capacity.
+
+|                | std::string  |        | std::u16string |        | std::u32string |        |
+|----------------|--------------|--------|----------------|--------|----------------|--------|
+| Implementation | SSO capacity | sizeof | SSO capacity   | sizeof | SSO capacity   | sizeof |
+| MSVC           | 31           | 32     | 15             | 32     | 7              | 32     |
+| GCC            | 31           | 32     | 23             | 48     | 19             | 80     |
+| Clang          | 23           | 24     | 11             | 24     | 5              | 24     |
+| SSO-23         | 23           | 24     | 11             | 24     | 5              | 24     |
