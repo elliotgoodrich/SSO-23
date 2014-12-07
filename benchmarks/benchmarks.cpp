@@ -1,6 +1,8 @@
 #include "string.hpp"
 
+#ifdef __GNUC__
 #include <ext/vstring.h>
+#endif
 
 #include <chrono>
 #include <iostream>
@@ -35,7 +37,7 @@ void test() {
 	std::cout << " (" << sizeof(T) << " bytes)" << std::endl;
 	for(int length = 0; length < test_length; ++length)
 	{
-		std::cout << std::endl << "Length " << length << ": ";
+		std::cout << "Length " << length << ": ";
 		timer<std::chrono::microseconds> timer;
 
 		std::vector<T> strings;
@@ -124,6 +126,8 @@ void test() {
 			auto time_taken = timer.elapsed();
 			std::cout << " Move: " << time_taken << "us, ";
 		}
+
+		std::cout << std::endl;
 	}
 }
 
@@ -138,7 +142,9 @@ int main() {
 	test<std::string>();
 	std::cout << std::endl;
 
+#ifdef __GNUC__
 	std::cout << "vstring";
 	test<vstring>();
 	std::cout << std::endl;
+#endif
 }
