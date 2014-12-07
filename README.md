@@ -65,7 +65,7 @@ As GCC's current `std::basic_string` implementation using COW, we will be lookin
     }
 
 ### Clang (rev 223128)
-Clang has two different internals to `std::basic_string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be odd. We also show the implementation used for big endian systems.
+Clang has two different internals to `std::basic_string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be even. We also show the implementation used for big endian systems.
 
     enum { short_mask = 0x01 };
     enum { long_mask  = 0x1ul };
