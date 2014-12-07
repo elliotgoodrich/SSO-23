@@ -127,7 +127,7 @@ We'll illustrate SSO-23 using a 32-bit system, as an x64 string would take too m
 
 ![](images/string1.png?raw=true)
 
-We need to find a value of this string that does not represent a correct string, so we can use it as a flag to indicate that this string is SSO. We know that size <= capacity, so we can save additional_capacity instead of capacity. where `capacity = size + additional_capacity`. Now note that the most significant bit of `size` and `additional_capacity` cannot both be 1, since in this case `size + additional_capacity > std::numeric_limits<std::size_t>::max()`. By some bitshifting we move these bits to the end of the string. In doing so, we need to move a bit of `additional_capacity` into the `size` variable. In the pictures we move the second most significant bit, but in practice it doesn't matter.
+We need to find a value of this string that does not represent a correct string, so we can use it as a flag to indicate that this string is SSO. We know that `size <= capacity`, so we can save additional_capacity instead of capacity. where `capacity = size + additional_capacity`. Now note that the most significant bit of `size` and `additional_capacity` cannot both be 1, since in this case `size + additional_capacity > std::numeric_limits<std::size_t>::max()`. By some bitshifting we move these bits to the end of the string. In doing so, we need to move a bit of `additional_capacity` into the `size` variable. In the pictures we move the second most significant bit, but in practice it doesn't matter.
 
 ![](images/string2.png?raw=true)
 
