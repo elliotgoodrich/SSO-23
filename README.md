@@ -127,15 +127,15 @@ We'll illustrate SSO-23 using a 32-bit system, as an x64 string would take too m
 
 ![](images/string1.png?raw=true)
 
-We need to find a value of this string that does not represent a correct string, so we can use it as a flag to indicate that this string is SSO. We know that `size <= capacity`, so we can save `additional_capacity` instead of `capacity`. where `capacity = size + additional_capacity`. Now note that the most significant bit of `size` and `additional_capacity` cannot both be 1, since in this case `size + additional_capacity > std::numeric_limits<std::size_t>::max()`. By some bitshifting we move these bits to the end of the string. In doing so, we need to move a bit of `additional_capacity` into the `size` variable. In the pictures we move the second most significant bit, but in practice it doesn't matter.
+We need to find a representation of this object that does not represent a valid string, so we can use it as a flag to indicate it is using SSO. We know that `size <= capacity`, so if the most significant bit of `size` is 1 but the most significant bit of `capacity` is 0, then we have the incorrect inequality of `size > capacity`. By some bitshifting we move these bits to the end of the string. In doing so, we need to move a bit of `capacity` into the `size` variable. In the pictures we move the second most significant bit, but in practice it doesn't matter.
 
 ![](images/string2.png?raw=true)
 
-Now if these last two bits are both 1, then we are using SSO and we use the other bits to hold the string and null character. This gives us a string of length 10 (plus null character). To be able to calculate the string length (keeping in mind that the string can hold null characters), we can use the other 6 bits of the last byte to hold the size (2^6 == 64 > 11).
+Now if these last two bits are 1 and 0, then we are using SSO and we use the other bits to hold the string and null character. This gives us a string of length 10 (plus null character). To be able to calculate the string length (keeping in mind that the string can hold null characters), we can use the other 6 bits of the last byte to hold the size (2^6 == 64 > 11).
 
 ![](images/sso1.png?raw=true)
 
-To use the last byte as part of the string we must make a few modifications. First, instead of storing the 2 flag bits, we store their binary negation. So if we are in SSO, the last two bits are both 0. Then, instead of storing the size, we store `11 - size`. 
+To use the last byte as part of the string we must make a few modifications. First, instead of storing the 2 flag bits, we store the binary negation of the bit we got from `size`. So if we are in SSO, the last two bits are both 0. Then, instead of storing the size, we store `11 - size`. 
 
 ![](images/sso2.png?raw=true)
 
