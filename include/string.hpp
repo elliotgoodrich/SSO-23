@@ -36,6 +36,7 @@
 #include <cstring>
 #include <ostream>
 #include <type_traits>
+#include <iostream>
 
 namespace sso23 {
 
@@ -179,7 +180,7 @@ private:
 
 	// We are using sso if the last two bits are 0
 	bool sso() const noexcept {
-		return !(detail::lsb<0>(m_data.sso.size) && detail::lsb<1>(m_data.sso.size));
+		return !detail::lsb<0>(m_data.sso.size) && !detail::lsb<1>(m_data.sso.size);
 	}
 
 	// good
@@ -193,9 +194,6 @@ private:
 	}
 
 	void set_non_sso_data(std::size_t size, std::size_t capacity) {
-		// Transform capacity into additional capacity
-		capacity -= size;
-
 		auto& size_hsb = detail::most_sig_byte(size);
 		auto const size_high_bit = detail::msb<0>(size_hsb);
 
@@ -206,23 +204,23 @@ private:
 		detail::set_msb<0>(size_hsb, cap_sec_high_bit);
 
 		cap_hsb <<= 2;
-		detail::set_lsb<0>(cap_hsb, !cap_high_bit);
+		detail::set_lsb<0>(cap_hsb, cap_high_bit);
 		detail::set_lsb<1>(cap_hsb, !size_high_bit);
 
 		m_data.non_sso.size = size;
-		m_data.non_sso.add_cap = capacity;
+		m_data.non_sso.capacity = capacity;
 	}
 
 	std::pair<std::size_t, std::size_t> read_non_sso_data() const {
 		auto size = m_data.non_sso.size;
-		auto capacity = m_data.non_sso.add_cap;
+		auto capacity = m_data.non_sso.capacity;
 
 		auto& size_hsb = detail::most_sig_byte(size);
 		auto& cap_hsb  = detail::most_sig_byte(capacity);
 
 		// Remember to negate the high bits
-		auto const size_high_bit    = !detail::lsb<0>(cap_hsb);
-		auto const cap_high_bit     = !detail::lsb<1>(cap_hsb);
+		auto const cap_high_bit     = detail::lsb<0>(cap_hsb);
+		auto const size_high_bit    = !detail::lsb<1>(cap_hsb);
 		auto const cap_sec_high_bit = detail::msb<0>(size_hsb);
 
 		detail::set_msb<0>(size_hsb, size_high_bit);
@@ -230,8 +228,6 @@ private:
 		cap_hsb >>= 2;
 		detail::set_msb<0>(cap_hsb, cap_high_bit);
 		detail::set_msb<1>(cap_hsb, cap_sec_high_bit);
-
-		capacity += size;
 
 		return std::make_pair(size, capacity);
 	}
@@ -241,7 +237,7 @@ private:
 		struct NonSSO {
 			CharT* ptr;
 			std::size_t size;
-			std::size_t add_cap;
+			std::size_t capacity;
 		} non_sso;
 		struct SSO {
 			CharT string[sizeof(NonSSO) / sizeof(CharT) - 1];
