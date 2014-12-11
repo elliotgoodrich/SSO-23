@@ -36,7 +36,6 @@
 #include <cstring>
 #include <ostream>
 #include <type_traits>
-#include <iostream>
 
 namespace sso23 {
 
