@@ -184,12 +184,12 @@ As they both have an additional buffer, both GCC's and MSVC's implementations co
         return m_data.s.size >> 1;
     }
 
-If these changes were made, and the `extra_buffer_size` is set so that the total sizeof the string is the same, we get this table for SSO capacity.
+If these changes were made, and the `extra_buffer_size` is set so that the total sizeof the string is the same, we get the updated table (with change in SSO capacity in brackets).
 
 |                | std::string  |        | std::u16string |        | std::u32string |        |
 |----------------|--------------|--------|----------------|--------|----------------|--------|
 | Implementation | SSO capacity | sizeof | SSO capacity   | sizeof | SSO capacity   | sizeof |
-| MSVC           | 31           | 32     | 15             | 32     | 7              | 32     |
-| GCC            | 31           | 32     | 23             | 48     | 19             | 80     |
-| Clang          | 23           | 24     | 11             | 24     | 5              | 24     |
+| MSVC           | 31 (+16)     | 32     | 15 (+8)        | 32     | 7 (+4)         | 32     |
+| GCC            | 31 (+16)     | 32     | 23 (+8)        | 48     | 19 (+4)        | 80     |
+| Clang          | 23 (+1)      | 24     | 11 (+1)        | 24     | 5 (+1)         | 24     |
 | SSO-23         | 23           | 24     | 11             | 24     | 5              | 24     |
