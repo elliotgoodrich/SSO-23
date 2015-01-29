@@ -6,11 +6,13 @@ std::string and SSO
 -------------------
 The most basic layout of a `std::basic_string<CharT>` object is
 
-    struct {
-        CharT* ptr;
-        size_type size;
-        size_type capacity;
-    };
+```cpp
+struct {
+    CharT* ptr;
+    size_type size;
+    size_type capacity;
+};
+```
 
 where `ptr` is a pointer to a dynamically allocated array of `CharT` of size `capacity`, which has a string of length `size`. However, allocating memory for an empty string (which must terminate with a null character) seems a bit wasteful. Most implementations of `std::basic_string` therefore allow storing a "small string" directly within the string object itself, thereby removing any allocations for small strings. This is known as small (or short) string optimisation.
 
@@ -31,95 +33,101 @@ Implementation Details
 ### MSVC 2013
 MSVC determines whether we are in SSO by comparing the capacity to the size of the buffer.
 
-    enum { buffer_size = std::max(1, 16 / sizeof(CharT)) };
+```cpp
+enum { buffer_size = std::max(1, 16 / sizeof(CharT)) };
 
-    union {
-        CharT buffer[buffer_size];
-        CharT* ptr;
-    } m_data;
-    size_type m_size;
-    size_type m_capacity;
+union {
+    CharT buffer[buffer_size];
+    CharT* ptr;
+} m_data;
+size_type m_size;
+size_type m_capacity;
 
-    CharT *data() {
-        return (m_capacity > buffer_size) ? m_data.ptr : &m_data.buffer;
-    }
+CharT *data() {
+    return (m_capacity > buffer_size) ? m_data.ptr : &m_data.buffer;
+}
+```
 
 ### GCC vstring (4.8.1)
 As GCC's current `std::basic_string` implementation using COW, we will be looking at their `vstring` class, which is the proposed update. Whether we are using SSO is dependent on whether `m_ptr` points to the local buffer or not. `vstring`'s buffer grows with `sizeof(CharT)`, so the `sizeof(u32vstring)` ends up being 80 bytes.
 
-    enum { local_capacity = 15 };
+```cpp
+enum { local_capacity = 15 };
 
-    CharT* m_ptr;
-    size_type m_size;
-    union {
-        CharT buffer[local_capacity + 1];
-        size_type capacity;
-    } m_data;
+CharT* m_ptr;
+size_type m_size;
+union {
+    CharT buffer[local_capacity + 1];
+    size_type capacity;
+} m_data;
 
-    bool is_local() const {
-        return m_ptr() == &m_data.buffer;
-    }
+bool is_local() const {
+    return m_ptr() == &m_data.buffer;
+}
 
-    size_type capacity() const {
-        return is_local() ? local_capacity : m_data.capacity;
-    }
+size_type capacity() const {
+    return is_local() ? local_capacity : m_data.capacity;
+}
+```
 
 ### Clang (rev 223128)
 Clang has two different internals to `std::basic_string` controlled by the define `_LIBCPP_ALTERNATE_STRING_LAYOUT`. These differ only on the position of the variables within `long` and `short`. We'll look at the alternate layout as it is closer to the implementation of SSO-23. The least significant bit of capacity is stolen to indicate whether the we are using SSO or not. The (very small) downside to this is that the capacity must be be even. We also show the implementation used for big endian systems.
 
-    enum { short_mask = 0x01 };
-    enum { long_mask  = 0x1ul };
+```cpp
+enum { short_mask = 0x01 };
+enum { long_mask  = 0x1ul };
 
-    struct long {
-        CharT* ptr;
-        size_type size;
-        size_type capacity;
-    };
+struct long {
+    CharT* ptr;
+    size_type size;
+    size_type capacity;
+};
 
-    enum { buffer_size = std::max(2, (sizeof(long) - 1) / sizeof(CharT)) };
+enum { buffer_size = std::max(2, (sizeof(long) - 1) / sizeof(CharT)) };
 
-    struct short {
-        CharT buffer[buffer_size];
-        /* padding type */ padding;
-        unsigned char size;
-    };
+struct short {
+    CharT buffer[buffer_size];
+    /* padding type */ padding;
+    unsigned char size;
+};
 
-    union {
-        long l;
-        short s;
-    } m_data;
+union {
+    long l;
+    short s;
+} m_data;
 
-    bool is_long() const {
-        return m_data.s.size & short_mask;
-    }
+bool is_long() const {
+    return m_data.s.size & short_mask;
+}
 
-    CharT* data() {
-        return is_long() ? m_data.l.ptr : &m_data.s.buffer;
-    }
+CharT* data() {
+    return is_long() ? m_data.l.ptr : &m_data.s.buffer;
+}
 
-    void set_short_size(size_type s) {
-        m_data.s.size = (unsigned char)(s << 1);
-    }
+void set_short_size(size_type s) {
+    m_data.s.size = (unsigned char)(s << 1);
+}
 
-    size_type get_short_size() const {
-        return m_data.s.size >> 1;
-    }
+size_type get_short_size() const {
+    return m_data.s.size >> 1;
+}
 
-    CharT* get_short_pointer() {
-        return &m_data.s.buffer;
-    }
+CharT* get_short_pointer() {
+    return &m_data.s.buffer;
+}
 
-    size_type capacity() const {
-        return (is_long() ? get_long_cap() : buffer_size) - 1;
-    }
+size_type capacity() const {
+    return (is_long() ? get_long_cap() : buffer_size) - 1;
+}
 
-    size_type get_long_cap() const {
-        return m_data.l.capacity & size_type(~long_mask);
-    }
+size_type get_long_cap() const {
+    return m_data.l.capacity & size_type(~long_mask);
+}
 
-    void set_long_cap(size_type s) {
-        m_data.l.capacity = long_mask | s;
-    }
+void set_long_cap(size_type s) {
+    m_data.l.capacity = long_mask | s;
+}
+```
 
 SSO-23
 ------
@@ -151,38 +159,40 @@ Clang's implementation could easily add another character to its SSO capacity by
 
 As they both have an additional buffer, both GCC's and MSVC's implementations could be changed to something similar to below, where we store the least significant bit of the last byte as a flag indicating whether or not whether we are in SSO. Then, if we are using SSO, we store `buffer_size - size` in the other bits of this bytes we can use all bytes available for SSO.
 
-    enum { extra_buffer_size = /* Extra capacity >= 1*/ };
+```cpp
+enum { extra_buffer_size = /* Extra capacity >= 1*/ };
 
-    struct long {
-        CharT* ptr;
-        size_type size;
-        size_type capacity;
-        Char buffer[extra_buffer_size];
-    };
+struct long {
+    CharT* ptr;
+    size_type size;
+    size_type capacity;
+    Char buffer[extra_buffer_size];
+};
 
-    struct short {
-        CharT buffer[sizeof(long) - 1];
-        CharT size;
-    };
+struct short {
+    CharT buffer[sizeof(long) - 1];
+    CharT size;
+};
 
-    union {
-        long l;
-        short s;
-    } m_data;
+union {
+    long l;
+    short s;
+} m_data;
 
-    enum { short_mask = 0x01 };
+enum { short_mask = 0x01 };
 
-    bool is_long() const {
-        return (unsigned char const*)&m_data.s.size & short_mask;
-    }
+bool is_long() const {
+    return (unsigned char const*)&m_data.s.size & short_mask;
+}
 
-    void set_short_size(size_type s) {
-        m_data.s.size = (unsigned char)(s << 1);
-    }
+void set_short_size(size_type s) {
+    m_data.s.size = (unsigned char)(s << 1);
+}
 
-    size_type get_short_size() const {
-        return m_data.s.size >> 1;
-    }
+size_type get_short_size() const {
+    return m_data.s.size >> 1;
+}
+```
 
 If these changes were made, and the `extra_buffer_size` is set so that the total sizeof the string is the same, we get the updated table (with change in SSO capacity in brackets).
 
