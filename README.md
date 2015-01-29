@@ -62,7 +62,7 @@ union {
 } m_data;
 
 bool is_local() const {
-    return m_ptr() == &m_data.buffer;
+    return m_ptr == &m_data.buffer;
 }
 
 size_type capacity() const {
